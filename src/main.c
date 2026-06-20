@@ -12,7 +12,7 @@
 // --- 配置区 ---
 #define PIN_D2 GPIO_NUM_2
 #define ESP_WIFI_SSID "ESP32_wifi_web"
-#define ESP_WIFI_PASS "你的WiFi密码"
+#define ESP_WIFI_PASS "12345678"
 static const char *TAG = "ESP32_MAIN";
 
 // --- 全局状态 ---
@@ -64,7 +64,7 @@ static void event_handler(void *arg, esp_event_base_t event_base,
     start_webserver();
   }
 }
-
+/**
 void wifi_init_sta(void) {
   ESP_ERROR_CHECK(esp_netif_init());
   ESP_ERROR_CHECK(esp_event_loop_create_default());
@@ -91,6 +91,78 @@ void wifi_init_sta(void) {
   ESP_ERROR_CHECK(esp_wifi_set_ps(WIFI_PS_MIN_MODEM)); // 开启节能
   ESP_ERROR_CHECK(esp_wifi_start());
 }
+
+*/
+
+void wifi_init_sta(void)
+{
+    EventGroupHandle_t s_wifi_event_group = xEventGroupCreate();
+
+    ESP_ERROR_CHECK(esp_netif_init());//tcpip协议初始化
+
+    ESP_ERROR_CHECK(esp_event_loop_create_default());
+    esp_netif_create_default_wifi_sta();//创建sta对象
+
+    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();//初始化结构体
+    ESP_ERROR_CHECK(esp_wifi_init(&cfg));//通过上面结构体的配置去初始化wifi
+
+    esp_event_handler_instance_t instance_any_id;//用于取消相应的事件
+    esp_event_handler_instance_t instance_got_ip;
+
+    ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT,
+                                                        ESP_EVENT_ANY_ID,//表示捕获所有wifi事件
+                                                        &event_handler,
+                                                        NULL,
+                                                        &instance_any_id));
+    ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT,
+                                                        IP_EVENT_STA_GOT_IP,//获取到ip事件
+                                                        &event_handler,
+                                                        NULL,
+                                                        &instance_got_ip));
+
+    wifi_config_t wifi_config = {//填充结构体成员
+        .sta = {
+            .ssid = ESP_WIFI_SSID, //你的wifi名称
+            .password = ESP_WIFI_PASS ,//你的wifi密码
+            /* Authmode threshold resets to WPA2 as default if password matches WPA2 standards (password len => 8).
+             * If you want to connect the device to deprecated WEP/WPA networks, Please set the threshold value
+             * to WIFI_AUTH_WEP/WIFI_AUTH_WPA_PSK and set the password with length and format matching to
+             * WIFI_AUTH_WEP/WIFI_AUTH_WPA_PSK standards.
+             */
+
+            // .threshold.authmode = ESP_WIFI_SCAN_AUTH_MODE_THRESHOLD,//加密等级
+            // .sae_pwe_h2e = ESP_WIFI_SAE_MODE,
+            // .sae_h2e_identifier = EXAMPLE_H2E_IDENTIFIER,
+        },
+    };
+    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP) );//设置sta模式
+    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config) );//将结构体配置设置进去
+    ESP_ERROR_CHECK(esp_wifi_start() );//启动wifi
+
+    ESP_LOGI(TAG, "wifi_init_sta finished.");
+
+    /* Waiting until either the connection is established (WIFI_CONNECTED_BIT) or connection failed for the maximum
+     * number of re-tries (WIFI_FAIL_BIT). The bits are set by event_handler() (see above) */
+    // EventBits_t bits = xEventGroupWaitBits(s_wifi_event_group,
+    //         WIFI_CONNECTED_BIT | WIFI_FAIL_BIT,
+    //         pdFALSE,
+    //         pdFALSE,
+    //         portMAX_DELAY);
+    //
+    // /* xEventGroupWaitBits() returns the bits before the call returned, hence we can test which event actually
+    //  * happened. */
+    // if (bits & WIFI_CONNECTED_BIT) {
+    //     ESP_LOGI(TAG, "connected to ap SSID:%s password:%s",
+    //              EXAMPLE_ESP_WIFI_SSID, EXAMPLE_ESP_WIFI_PASS);
+    // } else if (bits & WIFI_FAIL_BIT) {
+    //     ESP_LOGI(TAG, "Failed to connect to SSID:%s, password:%s",
+    //              EXAMPLE_ESP_WIFI_SSID, EXAMPLE_ESP_WIFI_PASS);
+    // } else {
+    //     ESP_LOGE(TAG, "UNEXPECTED EVENT");
+    // }
+}
+
+
 
 // --- 主程序 ---
 void app_main(void) {
